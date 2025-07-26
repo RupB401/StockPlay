@@ -21,3 +21,6 @@ python-multipart
 # OAuth dependencies
 httpx
 authlib
+# Additional dependencies
+schedule
+pydantic

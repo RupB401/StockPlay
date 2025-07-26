@@ -1,0 +1,23 @@
+# Core dependencies
+fastapi
+uvicorn
+psycopg2-binary
+python-dotenv
+aiohttp
+yfinance
+requests
+
+# Price data APIs
+finnhub-python
+alpha-vantage
+
+# Authentication dependencies
+bcrypt
+passlib[bcrypt]
+python-jose[cryptography]
+PyJWT
+python-multipart
+
+# OAuth dependencies
+httpx
+authlib

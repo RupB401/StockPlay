@@ -28,7 +28,7 @@ authlib==1.2.1
 # Additional dependencies
 schedule==1.2.0
 # Pydantic 2.5.x is the latest compatible with FastAPI 0.104.x and Python 3.11
-pydantic>=2.5.0,<2.6.0
+pydantic==1.10.13
 
 # Email dependencies (if needed)
 email-validator==2.1.0

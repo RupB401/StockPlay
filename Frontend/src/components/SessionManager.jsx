@@ -1,409 +1,879 @@
-/**
- * Session Persistence Utility
- * Handles cross-tab session synchronization and persistent login
- */
+import React, { useState, useEffect } from "react";
+import { useTheme } from "../contexts/ThemeContext";
 
-import CookieManager from './cookieManager';
+const StockUniversePage = () => {
+  const { isDark } = useTheme();
+  const [universeData, setUniverseData] = useState(null);
+  const [updateHistory, setUpdateHistory] = useState([]);
+  const [sectors, setSectors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [selectedSector, setSelectedSector] = useState("");
+  const [sectorStocks, setSectorStocks] = useState([]);
 
-class SessionManager {
-  constructor() {
-    this.listeners = new Set();
-    this.initializeEventListeners();
-    this.setupAutoLogout();
-  }
+  useEffect(() => {
+    loadUniverseData();
+  }, []);
 
-  initializeEventListeners() {
-    // Listen for storage changes across tabs
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'access_token' || e.key === 'user_data') {
-        this.notifyListeners(e);
-      }
-    });
-
-    // Listen for focus events to check session validity
-    window.addEventListener('focus', () => {
-      this.checkSessionValidity();
-    });
-
-    // Listen for beforeunload to save session state
-    window.addEventListener('beforeunload', () => {
-      this.saveSessionState();
-    });
-
-    // Listen for visibility change to pause/resume auto-refresh
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.pauseAutoRefresh();
-      } else {
-        this.resumeAutoRefresh();
-      }
-    });
-
-    // Periodic session check (every 5 minutes)
-    this.sessionCheckInterval = setInterval(() => {
-      this.checkSessionValidity();
-    }, 5 * 60 * 1000);
-  }
-
-  // Subscribe to session changes
-  subscribe(callback) {
-    this.listeners.add(callback);
-    return () => this.listeners.delete(callback);
-  }
-
-  // Notify all listeners of session changes
-  notifyListeners(event) {
-    this.listeners.forEach(callback => {
-      try {
-        callback(event);
-      } catch (error) {
-        console.error('Session listener error:', error);
-      }
-    });
-  }
-
-  // Check if session is still valid
-  async checkSessionValidity() {
-    const token = localStorage.getItem('access_token');
-    if (!token) return false;
-
-    // Check device fingerprint for security
-    const isSecure = await this.validateSessionSecurity();
-    if (!isSecure) {
-      this.clearSession();
-      return false;
-    }
-
+  const loadUniverseData = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      setLoading(true);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Try to refresh token
-          const refreshed = await this.tryRefreshToken();
-          return refreshed;
+      // Load all data in parallel
+      const [overviewResponse, historyResponse, sectorsResponse] =
+        await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/overview`),
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/history`),
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/sectors`),
+        ]);
+
+      if (overviewResponse.ok) {
+        const overview = await overviewResponse.json();
+        setUniverseData(overview);
+      }
+
+      if (historyResponse.ok) {
+        const history = await historyResponse.json();
+        setUpdateHistory(history.history || []);
+      }
+
+      if (sectorsResponse.ok) {
+        const sectorsData = await sectorsResponse.json();
+        setSectors(sectorsData.sectors || []);
+      }
+    } catch (error) {
+      console.error("Error loading universe data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForceUpdate = async () => {
+    try {
+      setUpdating(true);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/stock-universe/update`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ force: true }),
         }
-        return false;
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Update completed: ${result.message}`);
+        loadUniverseData(); // Reload data
+      } else {
+        alert("Update failed. Please try again.");
       }
-
-      return true;
     } catch (error) {
-      console.error('Session validation error:', error);
-      return false;
+      console.error("Error updating universe:", error);
+      alert("Update failed. Please check the console for details.");
+    } finally {
+      setUpdating(false);
     }
-  }
+  };
 
-  // Try to refresh the access token with better error handling
-  async tryRefreshToken() {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-      this.showSessionError('Session expired: No refresh token found. Please log in again.');
-      return false;
-    }
+  const loadSectorStocks = async (sector) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/stock-universe/sector/${sector}/stocks`
+      );
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem('access_token', data.access_token);
-        this.notifyListeners({ key: 'access_token', newValue: data.access_token });
-        return true;
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.detail || 'Session refresh failed. Please log in again.';
-        this.showSessionError(errorMsg);
-        this.clearSession();
-        return false;
+        setSectorStocks(data.stocks || []);
       }
     } catch (error) {
-      console.error('Token refresh error:', error);
-      this.showSessionError('Network error during session refresh. Please check your connection and log in again.');
-      this.clearSession();
-      return false;
+      console.error("Error loading sector stocks:", error);
     }
-  }
+  };
 
-  // Clear session data
-  clearSession() {
-    // Get user data before clearing to remove user-specific data
-    const userData = localStorage.getItem('user_data');
-    let userId = null;
-    let userEmail = null;
-    
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-        userEmail = user.email;
-      } catch (e) {
-        console.error('Error parsing user data:', e);
-      }
+  const handleSectorChange = (sector) => {
+    setSelectedSector(sector);
+    if (sector) {
+      loadSectorStocks(sector);
+    } else {
+      setSectorStocks([]);
     }
+  };
 
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_data');
-    localStorage.removeItem('remember_me');
-    localStorage.removeItem('device_fingerprint');
-    localStorage.removeItem('session_created');
-    localStorage.removeItem('session_state');
-    
-    // Clear user-specific profile data
-    if (userId || userEmail) {
-      const userKey = userId || userEmail;
-      localStorage.removeItem(`stockplay_profile_${userKey}`);
-      localStorage.removeItem(`stockplay_trading_prefs_${userKey}`);
-    }
-    
-    // Also clear old format data (for backward compatibility)
-    localStorage.removeItem('stockplay_profile');
-    localStorage.removeItem('stockplay_trading_prefs');
-    
-    // Clear session cookies
-    CookieManager.clearSessionCookies();
-    
-    if (this.inactivityTimer) {
-      clearTimeout(this.inactivityTimer);
-    }
-    if (this.sessionCheckInterval) {
-      clearInterval(this.sessionCheckInterval);
-    }
-    
-    this.notifyListeners({ key: 'access_token', newValue: null });
+  if (loading) {
+    return (
+      <div
+        className={`min-h-screen ${isDark ? "bg-gray-900" : "bg-gray-50"} p-6`}
+      >
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p className={`mt-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
+              Loading stock universe data...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  // Get current session state
-  getSessionState() {
-    const token = localStorage.getItem('access_token');
-    const userData = localStorage.getItem('user_data');
-    
-    return {
-      isAuthenticated: !!token,
-      token,
-      user: userData ? JSON.parse(userData) : null,
-    };
-  }
+  return (
+    <div
+      className={`min-h-screen ${isDark ? "bg-gray-900" : "bg-gray-50"} p-6`}
+    >
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1
+            className={`text-3xl font-bold ${
+              isDark ? "text-white" : "text-gray-900"
+            } mb-2`}
+          >
+            📊 Stock Universe Management
+          </h1>
+          <p
+            className={`text-lg ${isDark ? "text-gray-300" : "text-gray-600"}`}
+          >
+            Learn how our dynamic stock universe keeps your screener up-to-date
+            with the latest market data
+          </p>
+        </div>
 
-  // Save session data
-  saveSession(token, refreshToken, userData, rememberMe = false) {
-    this.rememberMe = rememberMe;
-    localStorage.setItem('access_token', token);
-    localStorage.setItem('refresh_token', refreshToken);
-    localStorage.setItem('user_data', JSON.stringify(userData));
-    localStorage.setItem('remember_me', rememberMe.toString());
-    
-    // Set device fingerprint for security
-    const fingerprint = JSON.stringify(this.getDeviceFingerprint());
-    localStorage.setItem('device_fingerprint', fingerprint);
-    
-    // Set session timestamp
-    localStorage.setItem('session_created', Date.now().toString());
-    
-    // Save session preference in cookie for cross-browser persistence
-    CookieManager.setSessionPreference(rememberMe);
-    
-    this.resetInactivityTimer();
-    
-    this.notifyListeners({ key: 'access_token', newValue: token });
-  }
+        {/* Educational Introduction */}
+        <div
+          className={`${
+            isDark
+              ? "bg-blue-900/20 border-blue-700"
+              : "bg-blue-50 border-blue-200"
+          } border rounded-lg p-6 mb-8`}
+        >
+          <h2
+            className={`text-xl font-semibold ${
+              isDark ? "text-blue-300" : "text-blue-800"
+            } mb-3`}
+          >
+            🎓 What is Stock Universe Management?
+          </h2>
+          <div
+            className={`${
+              isDark ? "text-blue-200" : "text-blue-700"
+            } space-y-2`}
+          >
+            <p>
+              <strong>Stock Universe</strong> refers to the complete set of
+              stocks available for screening and analysis. Unlike static lists,
+              our dynamic system automatically updates this universe to ensure
+              you always have access to:
+            </p>
+            <ul className="list-disc ml-6 space-y-1">
+              <li>
+                <strong>New IPOs</strong> - Recently public companies are added
+                automatically
+              </li>
+              <li>
+                <strong>Market Changes</strong> - Delisted or inactive stocks
+                are removed
+              </li>
+              <li>
+                <strong>Fresh Data</strong> - Company information is kept
+                current
+              </li>
+              <li>
+                <strong>Sector Updates</strong> - Companies that change sectors
+                are properly categorized
+              </li>
+            </ul>
+          </div>
+        </div>
 
-  // Initialize session from storage (for app startup)
-  initializeFromStorage() {
-    const token = localStorage.getItem('access_token');
-    const userData = localStorage.getItem('user_data');
-    const rememberMe = localStorage.getItem('remember_me') === 'true';
-    
-    if (token && userData) {
-      this.rememberMe = rememberMe;
-      // Validate session in background
-      this.checkSessionValidity();
-      return {
-        token,
-        user: JSON.parse(userData),
-        rememberMe,
-      };
-    }
-    
-    return null;
-  }
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <nav className="-mb-px flex space-x-8">
+              {[
+                { id: "overview", label: "📈 Overview", icon: "📈" },
+                { id: "sectors", label: "🏭 Sectors", icon: "🏭" },
+                { id: "history", label: "📜 History", icon: "📜" },
+                { id: "tutorial", label: "🎓 Tutorial", icon: "🎓" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === tab.id
+                      ? isDark
+                        ? "border-blue-500 text-blue-400"
+                        : "border-blue-500 text-blue-600"
+                      : isDark
+                      ? "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
 
-  // Setup auto-logout functionality
-  setupAutoLogout() {
-    this.lastActivity = Date.now();
-    this.inactivityTimer = null;
-    
-    // Track user activity
-    const activities = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    const updateActivity = () => {
-      this.lastActivity = Date.now();
-      this.resetInactivityTimer();
-    };
-    
-    activities.forEach(activity => {
-      document.addEventListener(activity, updateActivity, true);
-    });
-    
-    this.resetInactivityTimer();
-  }
+        {/* Tab Content */}
+        {activeTab === "overview" && (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Total Stocks */}
+              <div
+                className={`${
+                  isDark ? "bg-gray-800" : "bg-white"
+                } rounded-lg p-6 shadow-sm`}
+              >
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xl">📊</span>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p
+                      className={`text-2xl font-bold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      {universeData?.total_stocks || 0}
+                    </p>
+                    <p
+                      className={`text-sm ${
+                        isDark ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      Active Stocks
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-  // Reset inactivity timer
-  resetInactivityTimer() {
-    if (this.inactivityTimer) {
-      clearTimeout(this.inactivityTimer);
-    }
-    
-    // Auto-logout after 2 hours of inactivity (unless "Remember Me" is enabled)
-    const inactivityTimeout = this.rememberMe ? 24 * 60 * 60 * 1000 : 2 * 60 * 60 * 1000;
-    
-    this.inactivityTimer = setTimeout(() => {
-      this.handleInactivityLogout();
-    }, inactivityTimeout);
-  }
+              {/* Last Update */}
+              <div
+                className={`${
+                  isDark ? "bg-gray-800" : "bg-white"
+                } rounded-lg p-6 shadow-sm`}
+              >
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xl">🔄</span>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p
+                      className={`text-sm font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      {universeData?.last_update
+                        ? new Date(
+                            universeData.last_update.update_date
+                          ).toLocaleDateString()
+                        : "Never"}
+                    </p>
+                    <p
+                      className={`text-sm ${
+                        isDark ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      Last Updated
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-  // Handle logout due to inactivity
-  handleInactivityLogout() {
-    console.log('Session expired due to inactivity');
-    this.clearSession();
-    window.location.href = '/login?reason=timeout';
-  }
+              {/* Update Frequency */}
+              <div
+                className={`${
+                  isDark ? "bg-gray-800" : "bg-white"
+                } rounded-lg p-6 shadow-sm`}
+              >
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xl">⏰</span>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <p
+                      className={`text-sm font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      Every 3 Days
+                    </p>
+                    <p
+                      className={`text-sm ${
+                        isDark ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      Auto Update
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-  // Pause auto-refresh when tab is hidden
-  pauseAutoRefresh() {
-    if (this.sessionCheckInterval) {
-      clearInterval(this.sessionCheckInterval);
-    }
-  }
+            {/* Update Control */}
+            <div
+              className={`${
+                isDark ? "bg-gray-800" : "bg-white"
+              } rounded-lg p-6 shadow-sm`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3
+                    className={`text-lg font-semibold ${
+                      isDark ? "text-white" : "text-gray-900"
+                    } mb-2`}
+                  >
+                    Manual Update
+                  </h3>
+                  <p
+                    className={`text-sm ${
+                      isDark ? "text-gray-400" : "text-gray-600"
+                    }`}
+                  >
+                    Force an immediate update of the stock universe. This will
+                    fetch the latest data from multiple sources.
+                  </p>
+                </div>
+                <button
+                  onClick={handleForceUpdate}
+                  disabled={updating}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                    updating
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-500 hover:bg-blue-600 text-white"
+                  }`}
+                >
+                  {updating ? "🔄 Updating..." : "🚀 Update Now"}
+                </button>
+              </div>
+            </div>
 
-  // Resume auto-refresh when tab becomes visible
-  resumeAutoRefresh() {
-    this.sessionCheckInterval = setInterval(() => {
-      this.checkSessionValidity();
-    }, 5 * 60 * 1000);
-  }
+            {/* How It Works */}
+            <div
+              className={`${
+                isDark ? "bg-gray-800" : "bg-white"
+              } rounded-lg p-6 shadow-sm`}
+            >
+              <h3
+                className={`text-lg font-semibold ${
+                  isDark ? "text-white" : "text-gray-900"
+                } mb-4`}
+              >
+                🔧 How Our Dynamic Universe Works
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4
+                    className={`font-medium ${
+                      isDark ? "text-blue-400" : "text-blue-600"
+                    } mb-2`}
+                  >
+                    📡 Data Sources
+                  </h4>
+                  <ul
+                    className={`text-sm ${
+                      isDark ? "text-gray-300" : "text-gray-600"
+                    } space-y-1`}
+                  >
+                    <li>
+                      • <strong>Finnhub API:</strong> Real-time stock listings
+                    </li>
+                    <li>
+                      • <strong>Yahoo Finance:</strong> Company information
+                    </li>
+                    <li>
+                      • <strong>Market Indices:</strong> S&P 500, NASDAQ
+                      listings
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4
+                    className={`font-medium ${
+                      isDark ? "text-green-400" : "text-green-600"
+                    } mb-2`}
+                  >
+                    ⚡ Update Process
+                  </h4>
+                  <ul
+                    className={`text-sm ${
+                      isDark ? "text-gray-300" : "text-gray-600"
+                    } space-y-1`}
+                  >
+                    <li>
+                      • <strong>Fetch:</strong> Get latest stock lists
+                    </li>
+                    <li>
+                      • <strong>Filter:</strong> Remove invalid/delisted stocks
+                    </li>
+                    <li>
+                      • <strong>Categorize:</strong> Assign proper sectors
+                    </li>
+                    <li>
+                      • <strong>Update:</strong> Refresh screener data
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-  // Save current session state
-  saveSessionState() {
-    const sessionState = {
-      lastActivity: this.lastActivity,
-      rememberMe: this.rememberMe,
-      timestamp: Date.now(),
-    };
-    localStorage.setItem('session_state', JSON.stringify(sessionState));
-  }
+        {activeTab === "sectors" && (
+          <div className="space-y-6">
+            <div
+              className={`${
+                isDark ? "bg-gray-800" : "bg-white"
+              } rounded-lg p-6 shadow-sm`}
+            >
+              <h3
+                className={`text-lg font-semibold ${
+                  isDark ? "text-white" : "text-gray-900"
+                } mb-4`}
+              >
+                🏭 Stock Distribution by Sector
+              </h3>
 
-  // Set remember me preference
-  setRememberMe(remember) {
-    this.rememberMe = remember;
-    localStorage.setItem('remember_me', remember.toString());
-    this.resetInactivityTimer();
-  }
+              {/* Sector Selection */}
+              <div className="mb-6">
+                <select
+                  value={selectedSector}
+                  onChange={(e) => handleSectorChange(e.target.value)}
+                  className={`w-full md:w-64 px-3 py-2 border rounded-lg ${
+                    isDark
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-white border-gray-300 text-gray-900"
+                  }`}
+                >
+                  <option value="">Select a sector to view stocks...</option>
+                  {sectors.map((sector) => (
+                    <option key={sector.sector} value={sector.sector}>
+                      {sector.display_name} ({sector.stock_count} stocks)
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-  // Get device fingerprint for enhanced security
-  getDeviceFingerprint() {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.textBaseline = 'top';
-    ctx.font = '14px Arial';
-    ctx.fillText('Device fingerprint', 2, 2);
-    
-    return {
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      platform: navigator.platform,
-      screenResolution: `${screen.width}x${screen.height}`,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      canvasFingerprint: canvas.toDataURL(),
-    };
-  }
+              {/* Sectors Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                {sectors.map((sector) => (
+                  <div
+                    key={sector.sector}
+                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                      selectedSector === sector.sector
+                        ? isDark
+                          ? "bg-blue-900/30 border-blue-500"
+                          : "bg-blue-50 border-blue-300"
+                        : isDark
+                        ? "border-gray-600 hover:border-gray-500"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                    onClick={() => handleSectorChange(sector.sector)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4
+                        className={`font-medium ${
+                          isDark ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {sector.display_name}
+                      </h4>
+                      <span
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: sector.color_code }}
+                      ></span>
+                    </div>
+                    <p
+                      className={`text-sm ${
+                        isDark ? "text-gray-400" : "text-gray-600"
+                      } mb-2`}
+                    >
+                      {sector.description}
+                    </p>
+                    <p
+                      className={`text-lg font-bold ${
+                        isDark ? "text-blue-400" : "text-blue-600"
+                      }`}
+                    >
+                      {sector.stock_count} stocks
+                    </p>
+                  </div>
+                ))}
+              </div>
 
-  // Enhanced session validation with device fingerprint (relaxed: only warn, do not force logout)
-  async validateSessionSecurity() {
-    const storedFingerprint = localStorage.getItem('device_fingerprint');
-    const currentFingerprint = JSON.stringify(this.getDeviceFingerprint());
-    if (storedFingerprint && storedFingerprint !== currentFingerprint) {
-      // Only warn, do not force logout
-      console.warn('Device fingerprint mismatch - potential security risk');
-      // Optionally, show a toast or UI warning here
-      // return false; // Do not force logout
-    }
-    if (!storedFingerprint) {
-      localStorage.setItem('device_fingerprint', currentFingerprint);
-    }
-    return true;
-  }
+              {/* Selected Sector Stocks */}
+              {selectedSector && sectorStocks.length > 0 && (
+                <div
+                  className={`border-t ${
+                    isDark ? "border-gray-700" : "border-gray-200"
+                  } pt-6`}
+                >
+                  <h4
+                    className={`font-medium ${
+                      isDark ? "text-white" : "text-gray-900"
+                    } mb-4`}
+                  >
+                    Stocks in{" "}
+                    {
+                      sectors.find((s) => s.sector === selectedSector)
+                        ?.display_name
+                    }
+                    :
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {sectorStocks.map((stock) => (
+                      <div
+                        key={stock}
+                        className={`px-3 py-2 rounded-lg text-center text-sm font-mono ${
+                          isDark
+                            ? "bg-gray-700 text-gray-300"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {stock}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-  // Extend current session by getting new tokens
-  async extendSession() {
-    const token = localStorage.getItem('access_token');
-    if (!token) return false;
+        {activeTab === "history" && (
+          <div className="space-y-6">
+            <div
+              className={`${
+                isDark ? "bg-gray-800" : "bg-white"
+              } rounded-lg p-6 shadow-sm`}
+            >
+              <h3
+                className={`text-lg font-semibold ${
+                  isDark ? "text-white" : "text-gray-900"
+                } mb-6`}
+              >
+                📜 Update History
+              </h3>
 
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/session/extend`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+              {updateHistory.length === 0 ? (
+                <p
+                  className={`text-center py-8 ${
+                    isDark ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  No update history available yet.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {updateHistory.map((update, index) => (
+                    <div
+                      key={index}
+                      className={`border rounded-lg p-4 ${
+                        isDark ? "border-gray-700" : "border-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              update.status === "success"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            }`}
+                          >
+                            {update.status}
+                          </span>
+                          <span
+                            className={`text-sm ${
+                              isDark ? "text-gray-400" : "text-gray-500"
+                            }`}
+                          >
+                            {new Date(update.update_date).toLocaleString()}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-sm font-medium ${
+                            isDark ? "text-white" : "text-gray-900"
+                          }`}
+                        >
+                          {update.total_stocks} total stocks
+                        </span>
+                      </div>
 
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
-        this.resetInactivityTimer();
-        this.notifyListeners({ key: 'access_token', newValue: data.access_token });
-        return true;
-      } else {
-        return false;
-      }
-    } catch (error) {
-      console.error('Session extend error:', error);
-      return false;
-    }
-  }
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span
+                            className={`text-green-600 dark:text-green-400 font-medium`}
+                          >
+                            +{update.stocks_added}
+                          </span>
+                          <span
+                            className={`ml-1 ${
+                              isDark ? "text-gray-400" : "text-gray-600"
+                            }`}
+                          >
+                            added
+                          </span>
+                        </div>
+                        <div>
+                          <span
+                            className={`text-red-600 dark:text-red-400 font-medium`}
+                          >
+                            -{update.stocks_removed}
+                          </span>
+                          <span
+                            className={`ml-1 ${
+                              isDark ? "text-gray-400" : "text-gray-600"
+                            }`}
+                          >
+                            removed
+                          </span>
+                        </div>
+                      </div>
 
-  // Get comprehensive session information
-  async getSessionInfo() {
-    const token = localStorage.getItem('access_token');
-    if (!token) return null;
+                      {update.notes && (
+                        <p
+                          className={`mt-2 text-sm ${
+                            isDark ? "text-gray-300" : "text-gray-600"
+                          }`}
+                        >
+                          {update.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/session/info`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+        {activeTab === "tutorial" && (
+          <div className="space-y-6">
+            <div
+              className={`${
+                isDark ? "bg-gray-800" : "bg-white"
+              } rounded-lg p-6 shadow-sm`}
+            >
+              <h3
+                className={`text-lg font-semibold ${
+                  isDark ? "text-white" : "text-gray-900"
+                } mb-6`}
+              >
+                🎓 Stock Universe Tutorial
+              </h3>
 
-      if (response.ok) {
-        return await response.json();
-      } else {
-        return null;
-      }
-    } catch (error) {
-      console.error('Get session info error:', error);
-      return null;
-    }
-  }
+              <div className="space-y-8">
+                {/* Step 1 */}
+                <div className="flex space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                      1
+                    </div>
+                  </div>
+                  <div>
+                    <h4
+                      className={`font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      } mb-2`}
+                    >
+                      Understanding Stock Universe
+                    </h4>
+                    <p
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } mb-3`}
+                    >
+                      The stock universe is the foundation of our screener. It
+                      determines which stocks are available for filtering and
+                      analysis. Our dynamic system ensures this list stays
+                      current with market changes.
+                    </p>
+                    <div
+                      className={`${
+                        isDark ? "bg-blue-900/20" : "bg-blue-50"
+                      } rounded-lg p-3`}
+                    >
+                      <p
+                        className={`text-sm ${
+                          isDark ? "text-blue-200" : "text-blue-700"
+                        }`}
+                      >
+                        💡 <strong>Pro Tip:</strong> A larger, more current
+                        universe gives you better screening results and ensures
+                        you don't miss newly public companies.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-  // Check if session is persistent (remember me was enabled)
-  isPersistentSession() {
-    const cookiePreference = CookieManager.getSessionPreference();
-    return cookiePreference?.rememberMe || localStorage.getItem('remember_me') === 'true';
-  }
-}
+                {/* Step 2 */}
+                <div className="flex space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
+                      2
+                    </div>
+                  </div>
+                  <div>
+                    <h4
+                      className={`font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      } mb-2`}
+                    >
+                      Automatic Updates
+                    </h4>
+                    <p
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } mb-3`}
+                    >
+                      Our system automatically updates the stock universe every
+                      3 days by:
+                    </p>
+                    <ul
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } space-y-1 ml-4`}
+                    >
+                      <li>
+                        • Fetching latest stock listings from multiple APIs
+                      </li>
+                      <li>• Adding newly public companies (IPOs)</li>
+                      <li>• Removing delisted or inactive stocks</li>
+                      <li>• Updating sector classifications</li>
+                      <li>• Refreshing company information</li>
+                    </ul>
+                  </div>
+                </div>
 
-// Create singleton instance
-const sessionManager = new SessionManager();
+                {/* Step 3 */}
+                <div className="flex space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                      3
+                    </div>
+                  </div>
+                  <div>
+                    <h4
+                      className={`font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      } mb-2`}
+                    >
+                      Manual Control
+                    </h4>
+                    <p
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } mb-3`}
+                    >
+                      You can force an immediate update using the "Update Now"
+                      button in the Overview tab. This is useful when:
+                    </p>
+                    <ul
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } space-y-1 ml-4`}
+                    >
+                      <li>• You know of a major IPO or listing</li>
+                      <li>• Market conditions have changed significantly</li>
+                      <li>• You want the absolute latest data for analysis</li>
+                    </ul>
+                  </div>
+                </div>
 
-export default sessionManager;
+                {/* Step 4 */}
+                <div className="flex space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+                      4
+                    </div>
+                  </div>
+                  <div>
+                    <h4
+                      className={`font-semibold ${
+                        isDark ? "text-white" : "text-gray-900"
+                      } mb-2`}
+                    >
+                      Monitoring and History
+                    </h4>
+                    <p
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } mb-3`}
+                    >
+                      The History tab shows you exactly what changed in each
+                      update:
+                    </p>
+                    <ul
+                      className={`${
+                        isDark ? "text-gray-300" : "text-gray-600"
+                      } space-y-1 ml-4`}
+                    >
+                      <li>• How many stocks were added or removed</li>
+                      <li>• When each update occurred</li>
+                      <li>• Success/failure status of updates</li>
+                      <li>• Total stocks in the universe over time</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Best Practices */}
+                <div
+                  className={`${
+                    isDark
+                      ? "bg-yellow-900/20 border-yellow-700"
+                      : "bg-yellow-50 border-yellow-200"
+                  } border rounded-lg p-4`}
+                >
+                  <h4
+                    className={`font-semibold ${
+                      isDark ? "text-yellow-300" : "text-yellow-800"
+                    } mb-2`}
+                  >
+                    📋 Best Practices
+                  </h4>
+                  <ul
+                    className={`${
+                      isDark ? "text-yellow-200" : "text-yellow-700"
+                    } space-y-1`}
+                  >
+                    <li>
+                      • Check the Overview tab regularly to see update status
+                    </li>
+                    <li>
+                      • Review the History tab to understand universe changes
+                    </li>
+                    <li>
+                      • Use manual updates sparingly - automatic updates are
+                      usually sufficient
+                    </li>
+                    <li>
+                      • Monitor sector distribution to ensure balanced coverage
+                    </li>
+                    <li>
+                      • Be aware that universe changes may affect your saved
+                      screener results
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StockUniversePage;

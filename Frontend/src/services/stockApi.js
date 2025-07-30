@@ -85,19 +85,14 @@ export const getStockAllInfo = async (symbol) => {
 };
 
 // Enhanced search stocks function with robust fallback system
+
 export const searchStocks = async (query) => {
   try {
-    // Return empty array for very short queries
     if (!query || query.trim().length < 1) {
       return [];
     }
-
     const response = await api.get(`/search?query=${encodeURIComponent(query.trim())}`);
-    
-    // Ensure we always return an array
     const results = Array.isArray(response.data) ? response.data : [];
-    
-    // If we got results, return them
     return results;
   } catch (error) {
     console.error("Error searching stocks:", error);
@@ -105,6 +100,54 @@ export const searchStocks = async (query) => {
   }
 };
 
-// ... (rest of the file unchanged, copy all other exports and logic from api.js)
+// --- Restored API exports from old api.js ---
+export const getPopularStocks = async (limit = 10) => {
+  const response = await api.get(`/popular-stocks?limit=${limit}`);
+  // Support both array and paginated object
+  return response.data.stocks || response.data || [];
+};
+
+export const getMarketIndices = async () => {
+  const response = await api.get('/market-indices');
+  return response.data;
+};
+
+export const getTopPerformers = async (cap = 'large') => {
+  const response = await api.get(`/top-performers?cap=${cap}`);
+  return response.data;
+};
+
+export const getUpcomingIPOs = async () => {
+  const response = await api.get('/ipos/upcoming');
+  return response.data;
+};
+
+export const getStockNews = async (symbol, limit = 5) => {
+  const response = await api.get(`/stock/news/${symbol}?limit=${limit}`);
+  return response.data;
+};
+
+export const getAllStocks = async () => {
+  const response = await api.get('/all-stocks');
+  return response.data;
+};
+
+export const browseAllStocks = async (page = 1, limit = 40, sector = null, market_cap = null) => {
+  const params = { page, limit };
+  if (sector) params.sector = sector;
+  if (market_cap) params.market_cap = market_cap;
+  const response = await api.get('/browse-all-stocks', { params });
+  return response.data;
+};
+
+export const getCompanyLogo = async (symbol, name = null) => {
+  const response = await api.get(`/company/logo/${symbol}`);
+  return response.data.logo_url || response.data.logoUrl || null;
+};
+
+export const getRealNews = async (limit = 6) => {
+  const response = await api.get(`/news?limit=${limit}`);
+  return response.data;
+};
 
 export default api;

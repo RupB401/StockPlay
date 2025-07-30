@@ -1,4 +1,7 @@
+import CookieManager from "../utils/cookieManager";
 import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import sessionManager from "../utils/sessionManager";
 import { useTheme } from "../contexts/ThemeContext";
 
 const StockUniversePage = () => {
@@ -25,7 +28,7 @@ const StockUniversePage = () => {
         await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/stock-universe/overview`),
           fetch(`${import.meta.env.VITE_API_URL}/stock-universe/history`),
-          fetch("http://localhost:8000/stock-universe/sectors"),
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/sectors`),
         ]);
 
       if (overviewResponse.ok) {
@@ -54,7 +57,7 @@ const StockUniversePage = () => {
       setUpdating(true);
 
       const response = await fetch(
-        "http://localhost:8000/stock-universe/update",
+        `${import.meta.env.VITE_API_URL}/stock-universe/update`,
         {
           method: "POST",
           headers: {
@@ -82,7 +85,7 @@ const StockUniversePage = () => {
   const loadSectorStocks = async (sector) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/stock-universe/sector/${sector}/stocks`
+        `${import.meta.env.VITE_API_URL}/stock-universe/sector/${sector}/stocks`
       );
       if (response.ok) {
         const data = await response.json();

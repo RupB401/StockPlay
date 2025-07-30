@@ -44,25 +44,28 @@ function Profile() {
       // Fetch all data in parallel
       const [portfolioRes, walletRes, transactionsRes, alertsRes] =
         await Promise.all([
-          fetch("http://localhost:8000/trading/portfolio", {
+          fetch(`${import.meta.env.VITE_API_URL}/trading/portfolio`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
           }),
-          fetch("http://localhost:8000/trading/wallet", {
+          fetch(`${import.meta.env.VITE_API_URL}/trading/wallet`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
           }),
-          fetch("http://localhost:8000/trading/transactions?limit=5", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }),
-          fetch("http://localhost:8000/trading/alerts", {
+          fetch(
+            `${import.meta.env.VITE_API_URL}/trading/transactions?limit=5`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          ),
+          fetch(`${import.meta.env.VITE_API_URL}/trading/alerts`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",

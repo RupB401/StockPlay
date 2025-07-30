@@ -7,7 +7,7 @@ class APIError extends Error {
   }
 }
 
-export const createAPIRequest = (baseURL = 'http://localhost:8000') => {
+export const createAPIRequest = (baseURL = import.meta.env.VITE_API_URL) => {
   const makeRequest = async (endpoint, options = {}) => {
     const {
       timeout = 10000,

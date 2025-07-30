@@ -23,8 +23,8 @@ const StockUniversePage = () => {
       // Load all data in parallel
       const [overviewResponse, historyResponse, sectorsResponse] =
         await Promise.all([
-          fetch("http://localhost:8000/stock-universe/overview"),
-          fetch("http://localhost:8000/stock-universe/history"),
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/overview`),
+          fetch(`${import.meta.env.VITE_API_URL}/stock-universe/history`),
           fetch("http://localhost:8000/stock-universe/sectors"),
         ]);
 

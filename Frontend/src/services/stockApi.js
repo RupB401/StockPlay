@@ -109,6 +109,14 @@ export const getPopularStocks = async (limit = 10) => {
   return response.data.stocks || response.data || [];
 };
 
+// Export getIPOData for IPOsPage.jsx compatibility
+export const getIPOData = async () => {
+  // This function fetches IPO data from the backend
+  // You can adjust the endpoint if needed
+  const response = await api.get('/ipos/upcoming');
+  return response.data;
+};
+
 export const getMarketIndices = async () => {
   const response = await api.get('/market-indices');
   return response.data;

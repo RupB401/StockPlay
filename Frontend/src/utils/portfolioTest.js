@@ -17,7 +17,7 @@ async function testPortfolioFix() {
   
   try {
     // Test the new portfolio endpoint
-    const response = await fetch('http://localhost:8000/trading/portfolio', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/trading/portfolio`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -73,7 +73,7 @@ async function testWalletFix() {
   }
   
   try {
-    const response = await fetch('http://localhost:8000/trading/wallet', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/trading/wallet`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { screenerService } from './screenerService';
+import { earningsService } from './earningsService';
 
 // Configuration - could be moved to environment variables
 const API_URL = import.meta.env.VITE_API_URL;
@@ -145,9 +147,68 @@ export const getCompanyLogo = async (symbol, name = null) => {
   return response.data.logo_url || response.data.logoUrl || null;
 };
 
+
 export const getRealNews = async (limit = 6) => {
   const response = await api.get(`/news?limit=${limit}`);
   return response.data;
 };
+
+// --- Dashboard and cache management ---
+export const addStockToDashboard = async (symbol) => {
+  // POST to /dashboard/stocks with symbol as payload
+  const response = await api.post('/dashboard/stocks', { symbol });
+  return response.data;
+};
+
+
+export const refreshStockCache = async () => {
+  const response = await api.get('/stocks/refresh-cache');
+  return response.data;
+};
+
+// --- Additional dashboard and utility endpoints ---
+export const getDashboardStocks = async () => {
+  const response = await api.get('/dashboard/stocks');
+  return response.data;
+};
+
+export const removeStockFromDashboard = async (symbol) => {
+  const response = await api.delete(`/dashboard/stocks/${symbol}`);
+  return response.data;
+};
+
+export const getCompanyNews = async (symbol, limit = 5) => {
+  const response = await api.get(`/news/company/${symbol}?limit=${limit}`);
+  return response.data;
+};
+
+export const getStockDetail = async (symbol) => {
+  const response = await api.get(`/stock/detail/${symbol}`);
+  return response.data;
+};
+
+export const getStockHistorical = async (symbol, range = '1M') => {
+  const response = await api.get(`/stock/historical/${symbol}?range=${range}`);
+  return response.data;
+};
+
+export const refreshNewsCache = async () => {
+  const response = await api.get('/news/refresh-cache');
+  return response.data;
+};
+
+export const refreshLogoCache = async () => {
+  const response = await api.get('/logos/refresh-cache');
+  return response.data;
+};
+
+export const getCacheStatus = async () => {
+  const response = await api.get('/stocks/cache-status');
+  return response.data;
+};
+
+
+// Optionally re-export screener and earnings services for unified import
+export { screenerService, earningsService };
 
 export default api;

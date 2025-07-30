@@ -75,7 +75,7 @@ const handleTokenRefresh = () => {
     return Promise.resolve(null);
   }
 
-  return fetch("http://localhost:8000/auth/refresh", {
+  return fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -109,16 +109,16 @@ const handleTokenRefresh = () => {
 
 // Utility function for common API endpoints
 export const apiEndpoints = {
-  wallet: () => authenticatedFetch("http://localhost:8000/trading/wallet"),
-  portfolio: () => authenticatedFetch("http://localhost:8000/trading/portfolio"),
-  stockDetail: (symbol) => authenticatedFetch(`http://localhost:8000/stock/detail/${symbol}`),
-  holdings: (symbol) => authenticatedFetch(`http://localhost:8000/trading/holdings/${symbol}`),
-  buy: (data) => authenticatedFetch("http://localhost:8000/trading/buy", {
+  wallet: () => authenticatedFetch(`${import.meta.env.VITE_API_URL}/trading/wallet`),
+  portfolio: () => authenticatedFetch(`${import.meta.env.VITE_API_URL}/trading/portfolio`),
+  stockDetail: (symbol) => authenticatedFetch(`${import.meta.env.VITE_API_URL}/stock/detail/${symbol}`),
+  holdings: (symbol) => authenticatedFetch(`${import.meta.env.VITE_API_URL}/trading/holdings/${symbol}`),
+  buy: (data) => authenticatedFetch(`${import.meta.env.VITE_API_URL}/trading/buy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }),
-  sell: (data) => authenticatedFetch("http://localhost:8000/trading/sell", {
+  sell: (data) => authenticatedFetch(`${import.meta.env.VITE_API_URL}/trading/sell`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),

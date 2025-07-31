@@ -40,8 +40,6 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="StockPlay API", description="Stock market data and authentication API")
 
 # Enable CORS for frontend communication
-from fastapi.middleware.cors import CORSMiddleware
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -51,7 +49,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:3000",
-        "https://stockplay.netlify.app"  # <-- add your deployed frontend here!
+        "https://stockplay.netlify.app",
+        os.getenv("VITE_BACKEND_URL", "")  # Allow Vite backend URL if set as env var
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -182,6 +181,93 @@ async def shutdown_event():
 # Include authentication and trading routes
 app.include_router(auth_router)
 app.include_router(trading_router)
+
+
+
+@app.get("/screener/sectors")
+def get_screener_sectors():
+    """Get list of available sectors for screener"""
+    try:
+        return {"sectors": ScreenerService.get_sectors()}
+    except Exception as e:
+        logger.error(f"Error fetching screener sectors: {e}")
+        return {"sectors": []}
+
+@app.post("/screener/screen")
+async def screen_stocks(filters: dict = Body(...)):
+    """Screen stocks based on filters"""
+    try:
+        results = await ScreenerService.screen_stocks(filters)
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Error screening stocks: {e}")
+        return {"results": [], "error": str(e)}
+
+# --- Earnings Calendar Endpoint ---
+@app.get("/earnings/calendar")
+def get_earnings_calendar():
+    """Get earnings calendar (placeholder)"""
+    # TODO: Replace with real data/service if available
+    sample = [
+        {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close"},
+        {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open"},
+    ]
+    return {"calendar": sample}
+
+# --- IPOs Endpoint ---
+@app.get("/ipos")
+def get_ipos():
+    """Get IPOs (placeholder)"""
+    # TODO: Replace with real data/service if available
+    sample = [
+        {"symbol": "NEWC", "company": "NewCo Inc.", "ipo_date": "2025-08-10", "exchange": "NASDAQ"},
+        {"symbol": "TECHX", "company": "TechX Ltd.", "ipo_date": "2025-08-15", "exchange": "NYSE"},
+    ]
+    return {"ipos": sample}
+
+# --- Screener Endpoints ---
+from fastapi import Body
+
+@app.get("/screener/sectors")
+def get_screener_sectors():
+    """Get list of available sectors for screener"""
+    try:
+        return {"sectors": ScreenerService.get_sectors()}
+    except Exception as e:
+        logger.error(f"Error fetching screener sectors: {e}")
+        return {"sectors": []}
+
+@app.post("/screener/screen")
+async def screen_stocks(filters: dict = Body(...)):
+    """Screen stocks based on filters"""
+    try:
+        results = await ScreenerService.screen_stocks(filters)
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Error screening stocks: {e}")
+        return {"results": [], "error": str(e)}
+
+# --- Earnings Calendar Endpoint ---
+@app.get("/earnings/calendar")
+def get_earnings_calendar():
+    """Get earnings calendar (placeholder)"""
+    # TODO: Replace with real data/service if available
+    sample = [
+        {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close"},
+        {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open"},
+    ]
+    return {"calendar": sample}
+
+# --- IPOs Endpoint ---
+@app.get("/ipos")
+def get_ipos():
+    """Get IPOs (placeholder)"""
+    # TODO: Replace with real data/service if available
+    sample = [
+        {"symbol": "NEWC", "company": "NewCo Inc.", "ipo_date": "2025-08-10", "exchange": "NASDAQ"},
+        {"symbol": "TECHX", "company": "TechX Ltd.", "ipo_date": "2025-08-15", "exchange": "NYSE"},
+    ]
+    return {"ipos": sample}
 
 @app.exception_handler(Exception)
 async def internal_exception_handler(request: Request, exc: Exception):

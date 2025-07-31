@@ -241,7 +241,7 @@ const Login = () => {
       setError(""); // Clear any previous errors
 
       // Redirect to backend OAuth endpoint
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const apiUrl = import.meta.env.VITE_API_URL;
       console.log("Redirecting to:", `${apiUrl}/auth/google`);
       window.location.href = `${apiUrl}/auth/google`;
     } catch (error) {
@@ -257,7 +257,7 @@ const Login = () => {
       setError(""); // Clear any previous errors
 
       // Redirect to backend OAuth endpoint
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const apiUrl = import.meta.env.VITE_API_URL;
       console.log("Redirecting to:", `${apiUrl}/auth/github`);
       window.location.href = `${apiUrl}/auth/github`;
     } catch (error) {

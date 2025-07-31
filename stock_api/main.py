@@ -222,8 +222,11 @@ patch_stock_universe_database()
 async def screen_stocks(filters: dict = Body(...)):
     """Screen stocks based on filters"""
     try:
-        results = await ScreenerService.screen_stocks(filters)
-        # Always return a dict, never a list directly
+        # Try async version first, fallback to sync if TypeError
+        try:
+            results = await ScreenerService.screen_stocks(filters)
+        except TypeError:
+            results = ScreenerService.screen_stocks(filters)
         if isinstance(results, list):
             return {"results": results}
         elif isinstance(results, dict):

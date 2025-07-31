@@ -198,7 +198,7 @@ const SettingsPage = () => {
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        "http://localhost:8000/auth/change-password",
+        `${import.meta.env.VITE_API_URL}/auth/change-password`,
         {
           method: "POST",
           headers: {

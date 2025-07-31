@@ -103,7 +103,7 @@ function IndicesPage() {
       const promises = Object.entries(indexMapping).map(
         async ([indexSymbol, mapping]) => {
           const response = await fetch(
-            `http://localhost:8000/stock/detail/${mapping.symbol}`
+            `${import.meta.env.VITE_API_URL}/stock/detail/${mapping.symbol}`
           );
           const data = await response.json();
           return {
@@ -146,7 +146,9 @@ function IndicesPage() {
       setIsUsingDummyData(false);
 
       const response = await fetch(
-        `http://localhost:8000/stock/historical/${symbol}?range=${range}`
+        `${
+          import.meta.env.VITE_API_URL
+        }/stock/historical/${symbol}?range=${range}`
       );
       const data = await response.json();
 

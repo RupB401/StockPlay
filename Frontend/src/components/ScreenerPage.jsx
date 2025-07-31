@@ -153,7 +153,7 @@ function ScreenerPage() {
       console.log("API Filters being sent:", apiFilters); // Debug log
 
       const data = await screenerService.screenStocks(apiFilters);
-      setResults(data.stocks);
+      setResults(data.results || []);
       setResultStats({
         count: data.count,
         filters_applied: data.filters_applied,

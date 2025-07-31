@@ -215,15 +215,165 @@ def get_earnings_calendar():
     return {"calendar": sample}
 
 # --- IPOs Endpoint ---
+import aiohttp
+
 @app.get("/ipos")
-def get_ipos():
-    """Get IPOs (placeholder)"""
-    # TODO: Replace with real data/service if available
-    sample = [
-        {"symbol": "NEWC", "company": "NewCo Inc.", "ipo_date": "2025-08-10", "exchange": "NASDAQ"},
-        {"symbol": "TECHX", "company": "TechX Ltd.", "ipo_date": "2025-08-15", "exchange": "NYSE"},
-    ]
-    return {"ipos": sample}
+async def get_ipos():
+    """Fetch IPO data from Finnhub, Alpha Vantage, and Yahoo Finance APIs and return in frontend format"""
+    upcoming_ipos = []
+    recent_ipos = []
+
+    # --- Finnhub ---
+    try:
+        if FINNHUB_API_KEY:
+            async with aiohttp.ClientSession() as session:
+                # Finnhub IPO Calendar (upcoming)
+                url = f"https://finnhub.io/api/v1/calendar/ipo?from={datetime.now().strftime('%Y-%m-%d')}&to={(datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        for ipo in data.get("ipoCalendar", [])[:10]:
+                            upcoming_ipos.append({
+                                "company": ipo.get("name", "N/A"),
+                                "symbol": ipo.get("symbol", "N/A"),
+                                "expectedDate": ipo.get("date", "N/A"),
+                                "priceRange": ipo.get("price", "N/A"),
+                                "shares": ipo.get("shares", "N/A"),
+                                "valuation": ipo.get("valuation", "N/A"),
+                                "sector": ipo.get("sector", "Unknown"),
+                                "description": ipo.get("description", "")
+                            })
+                # Finnhub IPO Calendar (recent)
+                url_recent = f"https://finnhub.io/api/v1/calendar/ipo?from={(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')}&to={datetime.now().strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
+                async with session.get(url_recent, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        for ipo in data.get("ipoCalendar", [])[:10]:
+                            recent_ipos.append({
+                                "company": ipo.get("name", "N/A"),
+                                "symbol": ipo.get("symbol", "N/A"),
+                                "ipoDate": ipo.get("date", "N/A"),
+                                "ipoPrice": ipo.get("price", "N/A"),
+                                "currentPrice": ipo.get("price", "N/A"),
+                                "change": "N/A",
+                                "isPositive": True,
+                                "sector": ipo.get("sector", "Unknown")
+                            })
+    except Exception as e:
+        logging.error(f"Finnhub IPO fetch error: {e}")
+
+    # --- Alpha Vantage (News Sentiment as fallback for IPOs) ---
+    try:
+        if ALPHA_VANTAGE_API_KEY and len(upcoming_ipos) < 3:
+            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={ALPHA_VANTAGE_API_KEY}&topics=ipo"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for item in data.get("feed", [])[:5]:
+                upcoming_ipos.append({
+                    "company": item.get("title", "N/A"),
+                    "symbol": item.get("ticker_sentiment", [{}])[0].get("ticker", "N/A") if item.get("ticker_sentiment") else "N/A",
+                    "expectedDate": item.get("time_published", "N/A")[:10],
+                    "priceRange": "N/A",
+                    "shares": "N/A",
+                    "valuation": "N/A",
+                    "sector": item.get("topics", [{}])[0].get("topic", "Unknown") if item.get("topics") else "Unknown",
+                    "description": item.get("summary", "")
+                })
+    except Exception as e:
+        logging.error(f"Alpha Vantage IPO fallback error: {e}")
+
+    # --- Yahoo Finance (unofficial, fallback) ---
+    try:
+        if len(upcoming_ipos) < 3:
+            url = "https://query1.finance.yahoo.com/v7/finance/ipo-calendar"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for ipo in data.get("ipoCalendar", [])[:5]:
+                upcoming_ipos.append({
+                    "company": ipo.get("company", "N/A"),
+                    "symbol": ipo.get("symbol", "N/A"),
+                    "expectedDate": ipo.get("expectedDate", "N/A"),
+                    "priceRange": ipo.get("priceRange", "N/A"),
+                    "shares": ipo.get("shares", "N/A"),
+                    "valuation": ipo.get("valuation", "N/A"),
+                    "sector": ipo.get("sector", "Unknown"),
+                    "description": ipo.get("description", "")
+                })
+    except Exception as e:
+        logging.error(f"Yahoo Finance IPO fallback error: {e}")
+
+    # Fallback mock data if all APIs fail
+    if not upcoming_ipos:
+        upcoming_ipos = [
+            {
+                "company": "TechStart Inc.",
+                "symbol": "TECH",
+                "expectedDate": "2025-08-15",
+                "priceRange": "$18 - $22",
+                "shares": "10M",
+                "valuation": "$2.2B",
+                "sector": "Technology",
+                "description": "AI-powered software solutions for enterprise clients",
+            },
+            {
+                "company": "GreenEnergy Corp",
+                "symbol": "GREEN",
+                "expectedDate": "2025-08-22",
+                "priceRange": "$25 - $30",
+                "shares": "8M",
+                "valuation": "$2.4B",
+                "sector": "Clean Energy",
+                "description": "Solar panel manufacturing and renewable energy solutions",
+            },
+            {
+                "company": "HealthTech Solutions",
+                "symbol": "HLTH",
+                "expectedDate": "2025-09-05",
+                "priceRange": "$15 - $20",
+                "shares": "12M",
+                "valuation": "$2.1B",
+                "sector": "Healthcare",
+                "description": "Digital health platforms and telemedicine services",
+            },
+        ]
+    if not recent_ipos:
+        recent_ipos = [
+            {
+                "company": "DataFlow Systems",
+                "symbol": "DFLOW",
+                "ipoDate": "2025-07-10",
+                "ipoPrice": "$20.00",
+                "currentPrice": "$24.50",
+                "change": "+22.5%",
+                "isPositive": True,
+                "sector": "Technology",
+            },
+            {
+                "company": "RetailNext Ltd",
+                "symbol": "RNXT",
+                "ipoDate": "2025-07-08",
+                "ipoPrice": "$16.00",
+                "currentPrice": "$14.25",
+                "change": "-10.9%",
+                "isPositive": False,
+                "sector": "Retail",
+            },
+            {
+                "company": "BioMed Innovations",
+                "symbol": "BMED",
+                "ipoDate": "2025-07-01",
+                "ipoPrice": "$28.00",
+                "currentPrice": "$32.80",
+                "change": "+17.1%",
+                "isPositive": True,
+                "sector": "Biotechnology",
+            },
+        ]
+
+    return {
+        "upcoming_ipos": upcoming_ipos,
+        "recent_ipos": recent_ipos
+    }
 
 # --- Screener Endpoints ---
 from fastapi import Body

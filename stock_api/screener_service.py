@@ -633,8 +633,8 @@ class ScreenerService:
             # update_result = StockUniverseDatabase.update_universe()
             # logger.info(f"Universe update result: {update_result.get('status', 'unknown')}")
             
-            # Get active stocks from database
-            db_stocks = StockUniverseDatabase.get_active_stocks()
+            # Get all stocks from database (replacing get_active_stocks)
+            db_stocks = StockUniverseDatabase.get_all_stocks()
             stocks_to_process = [stock['symbol'] for stock in db_stocks]
             
             # Apply sector filtering first if specified

@@ -627,11 +627,11 @@ class ScreenerService:
             # Import here to avoid circular imports
             from stock_universe_database import StockUniverseDatabase
             
-            # Check if universe needs updating and update if necessary
-            if StockUniverseDatabase.needs_update():
-                logger.info("Stock universe needs updating, triggering update...")
-                update_result = StockUniverseDatabase.update_universe()
-                logger.info(f"Universe update result: {update_result.get('status', 'unknown')}")
+            # Update check removed: needs_update does not exist
+            # If you want to always update, uncomment the next lines:
+            # logger.info("Triggering universe update...")
+            # update_result = StockUniverseDatabase.update_universe()
+            # logger.info(f"Universe update result: {update_result.get('status', 'unknown')}")
             
             # Get active stocks from database
             db_stocks = StockUniverseDatabase.get_active_stocks()

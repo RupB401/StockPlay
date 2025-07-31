@@ -11,34 +11,28 @@ export const screenerService = {
    */
   async screenStocks(filters) {
     try {
-      const params = new URLSearchParams();
-      
-      // Add all non-null filters to query params
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          params.append(key, value);
-        }
-      });
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const response = await fetch(`${API_BASE_URL}/screener/screen?${params}`, {
+
+      const response = await fetch(`${API_BASE_URL}/screener/screen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(filters),
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       return data;
     } catch (error) {
       if (error.name === 'AbortError') {

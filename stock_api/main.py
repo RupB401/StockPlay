@@ -188,10 +188,35 @@ app.include_router(trading_router)
 def get_screener_sectors():
     """Get list of available sectors for screener"""
     try:
-        return {"sectors": ScreenerService.get_sectors()}
+        from stock_universe_database import StockUniverseDatabase
+        sectors = StockUniverseDatabase.get_available_sectors()
+        return {"sectors": sectors}
     except Exception as e:
         logger.error(f"Error fetching screener sectors: {e}")
         return {"sectors": []}
+
+# Add get_available_sectors to StockUniverseDatabase if not present
+def patch_stock_universe_database():
+    try:
+        import sys
+        import types
+        from stock_universe_database import StockUniverseDatabase
+        def get_available_sectors(cls):
+            sectors = set()
+            with cls.get_connection() as conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("SELECT DISTINCT sector FROM stock_universe WHERE sector IS NOT NULL AND sector != ''")
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        sectors.add(row[0])
+                except Exception as e:
+                    pass
+            return sorted(list(sectors))
+        StockUniverseDatabase.get_available_sectors = classmethod(get_available_sectors)
+    except Exception as e:
+        pass
+patch_stock_universe_database()
 
 @app.post("/screener/screen")
 async def screen_stocks(filters: dict = Body(...)):

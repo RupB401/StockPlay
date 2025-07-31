@@ -227,15 +227,48 @@ async def screen_stocks(filters: dict = Body(...)):
             results = await ScreenerService.screen_stocks(filters)
         except TypeError:
             results = ScreenerService.screen_stocks(filters)
+        # Always return a dict with 'results', 'count', 'filters_applied', 'last_updated'
         if isinstance(results, list):
-            return {"results": results}
+            return {
+                "results": results,
+                "count": len(results),
+                "filters_applied": filters,
+                "last_updated": datetime.now().isoformat()
+            }
         elif isinstance(results, dict):
-            return results
+            # If already in correct format, ensure 'results' key exists
+            if 'results' in results:
+                if 'count' not in results:
+                    results['count'] = len(results['results']) if isinstance(results['results'], list) else 0
+                if 'filters_applied' not in results:
+                    results['filters_applied'] = filters
+                if 'last_updated' not in results:
+                    results['last_updated'] = datetime.now().isoformat()
+                return results
+            else:
+                return {
+                    "results": [results],
+                    "count": 1,
+                    "filters_applied": filters,
+                    "last_updated": datetime.now().isoformat()
+                }
         else:
-            return {"results": [], "error": "Unexpected result type from ScreenerService"}
+            return {
+                "results": [],
+                "count": 0,
+                "filters_applied": filters,
+                "last_updated": datetime.now().isoformat(),
+                "error": "Unexpected result type from ScreenerService"
+            }
     except Exception as e:
         logger.error(f"Error screening stocks: {e}")
-        return {"results": [], "error": str(e)}
+        return {
+            "results": [],
+            "count": 0,
+            "filters_applied": filters,
+            "last_updated": datetime.now().isoformat(),
+            "error": str(e)
+        }
 
 # --- Earnings Calendar Endpoint ---
 import aiohttp

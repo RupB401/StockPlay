@@ -1704,6 +1704,7 @@ async def enhanced_db_search(query):
                 })
                 seen_symbols.add(row['symbol'])
         
+        
         return results
         
     except Exception as e:

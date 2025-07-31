@@ -378,7 +378,7 @@ function ETFsPage() {
       const etfPromises = popularETFs.map(async (etf) => {
         try {
           const response = await fetch(
-            `http://localhost:8000/stock/detail/${etf.symbol}`
+            `${import.meta.env.VITE_API_URL}/stock/detail/${etf.symbol}`
           );
           const data = await response.json();
           return {

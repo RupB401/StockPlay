@@ -77,6 +77,22 @@ function AppContent() {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<LandingPage />} />
             <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <PortfolioAnalytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/market-indices"
+              element={
+                <ProtectedRoute>
+                  <IndicesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/explore"
               element={
                 <ProtectedRoute>

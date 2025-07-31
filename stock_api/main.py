@@ -223,7 +223,13 @@ async def screen_stocks(filters: dict = Body(...)):
     """Screen stocks based on filters"""
     try:
         results = await ScreenerService.screen_stocks(filters)
-        return {"results": results}
+        # Always return a dict, never a list directly
+        if isinstance(results, list):
+            return {"results": results}
+        elif isinstance(results, dict):
+            return results
+        else:
+            return {"results": [], "error": "Unexpected result type from ScreenerService"}
     except Exception as e:
         logger.error(f"Error screening stocks: {e}")
         return {"results": [], "error": str(e)}

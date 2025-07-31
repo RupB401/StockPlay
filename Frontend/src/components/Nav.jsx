@@ -48,12 +48,40 @@ function Nav() {
     return () => clearInterval(interval);
   }, []);
 
-  // Only update the input value and reset highlight on change, do not trigger search
+  // Debounced search: update input, then trigger search after 300ms of inactivity
   const handleInputChange = (e) => {
-    setSearchQuery(e.target.value);
+    const value = e.target.value;
+    setSearchQuery(value);
     setHighlightedIndex(-1);
-    setShowResults(false);
-    setSearchResults([]);
+    // Always show dropdown if input is not empty
+    setShowResults(!!value);
+    // Clear previous timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    // If input is empty, clear results
+    if (!value) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    // Debounce search
+    const timeout = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await searchStocks(value);
+        const safeResults = Array.isArray(results) ? results : [];
+        setSearchResults(safeResults);
+        if (safeResults.length > 0) {
+          setHighlightedIndex(0);
+        }
+      } catch (error) {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+    setSearchTimeout(timeout);
   };
 
   // Function to trigger search immediately (for Enter key and magnifying glass click)

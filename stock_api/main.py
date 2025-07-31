@@ -273,36 +273,37 @@ async def screen_stocks(filters: dict = Body(...)):
 # --- Earnings Calendar Endpoint ---
 import aiohttp
 
+
 @app.get("/earnings/calendar")
 async def get_earnings_calendar():
-    """Fetch upcoming earnings calendar from Finnhub, Alpha Vantage, and Yahoo Finance APIs, with fallback."""
+    """Fetch upcoming and recent earnings calendar from APIs, split for richer UX."""
     earnings = []
 
     # --- Finnhub ---
     try:
         if FINNHUB_API_KEY:
             async with aiohttp.ClientSession() as session:
-                url = f"https://finnhub.io/api/v1/calendar/earnings?from={datetime.now().strftime('%Y-%m-%d')}&to={(datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
+                url = f"https://finnhub.io/api/v1/calendar/earnings?from={(datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')}&to={(datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     if response.status == 200:
                         data = await response.json()
-                        for report in data.get("earningsCalendar", [])[:20]:
+                        for report in data.get("earningsCalendar", [])[:40]:
                             earnings.append({
                                 "symbol": report.get("symbol", "N/A"),
                                 "company": report.get("company", "N/A"),
                                 "date": report.get("date", "N/A"),
                                 "time": report.get("hour", "N/A"),
-                                "epsEstimate": report.get("epsEstimate", None),
-                                "epsActual": report.get("epsActual", None),
-                                "revenueEstimate": report.get("revenueEstimate", None),
-                                "revenueActual": report.get("revenueActual", None)
+                                "estimatedEPS": report.get("epsEstimate", None),
+                                "actualEPS": report.get("epsActual", None),
+                                "estimatedRevenue": report.get("revenueEstimate", None),
+                                "actualRevenue": report.get("revenueActual", None)
                             })
     except Exception as e:
         logging.error(f"Finnhub earnings fetch error: {e}")
 
     # --- Alpha Vantage (News Sentiment as fallback for earnings) ---
     try:
-        if ALPHA_VANTAGE_API_KEY and len(earnings) < 5:
+        if ALPHA_VANTAGE_API_KEY and len(earnings) < 10:
             url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={ALPHA_VANTAGE_API_KEY}&topics=earnings"
             resp = requests.get(url, timeout=10)
             data = resp.json()
@@ -312,17 +313,17 @@ async def get_earnings_calendar():
                     "company": item.get("title", "N/A"),
                     "date": item.get("time_published", "N/A")[:10],
                     "time": "N/A",
-                    "epsEstimate": None,
-                    "epsActual": None,
-                    "revenueEstimate": None,
-                    "revenueActual": None
+                    "estimatedEPS": None,
+                    "actualEPS": None,
+                    "estimatedRevenue": None,
+                    "actualRevenue": None
                 })
     except Exception as e:
         logging.error(f"Alpha Vantage earnings fallback error: {e}")
 
     # --- Yahoo Finance (unofficial, fallback) ---
     try:
-        if len(earnings) < 5:
+        if len(earnings) < 10:
             url = "https://query1.finance.yahoo.com/v7/finance/earnings-calendar"
             resp = requests.get(url, timeout=10)
             data = resp.json()
@@ -332,10 +333,10 @@ async def get_earnings_calendar():
                     "company": report.get("company", "N/A"),
                     "date": report.get("reportDate", "N/A"),
                     "time": report.get("time", "N/A"),
-                    "epsEstimate": report.get("epsEstimate", None),
-                    "epsActual": report.get("epsActual", None),
-                    "revenueEstimate": report.get("revenueEstimate", None),
-                    "revenueActual": report.get("revenueActual", None)
+                    "estimatedEPS": report.get("epsEstimate", None),
+                    "actualEPS": report.get("epsActual", None),
+                    "estimatedRevenue": report.get("revenueEstimate", None),
+                    "actualRevenue": report.get("revenueActual", None)
                 })
     except Exception as e:
         logging.error(f"Yahoo Finance earnings fallback error: {e}")
@@ -343,11 +344,26 @@ async def get_earnings_calendar():
     # Fallback mock data if all APIs fail
     if not earnings:
         earnings = [
-            {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close", "epsEstimate": 1.25, "epsActual": None, "revenueEstimate": 82000000000, "revenueActual": None},
-            {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open", "epsEstimate": 2.10, "epsActual": None, "revenueEstimate": 56000000000, "revenueActual": None},
+            {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close", "estimatedEPS": 1.25, "actualEPS": None, "estimatedRevenue": 82000000000, "actualRevenue": None},
+            {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open", "estimatedEPS": 2.10, "actualEPS": None, "estimatedRevenue": 56000000000, "actualRevenue": None},
         ]
 
-    return {"calendar": earnings}
+    # Split into upcoming and recent
+    upcoming = []
+    recent = []
+    today = datetime.now().date()
+    for e in earnings:
+        try:
+            edate = datetime.strptime(e["date"], "%Y-%m-%d").date()
+        except Exception:
+            upcoming.append(e)
+            continue
+        if edate >= today:
+            upcoming.append(e)
+        else:
+            recent.append(e)
+
+    return {"upcoming": upcoming, "recent": recent}
 
 # --- IPOs Endpoint ---
 import aiohttp

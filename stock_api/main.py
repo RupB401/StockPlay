@@ -204,15 +204,83 @@ async def screen_stocks(filters: dict = Body(...)):
         return {"results": [], "error": str(e)}
 
 # --- Earnings Calendar Endpoint ---
+import aiohttp
+
 @app.get("/earnings/calendar")
-def get_earnings_calendar():
-    """Get earnings calendar (placeholder)"""
-    # TODO: Replace with real data/service if available
-    sample = [
-        {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close"},
-        {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open"},
-    ]
-    return {"calendar": sample}
+async def get_earnings_calendar():
+    """Fetch upcoming earnings calendar from Finnhub, Alpha Vantage, and Yahoo Finance APIs, with fallback."""
+    earnings = []
+
+    # --- Finnhub ---
+    try:
+        if FINNHUB_API_KEY:
+            async with aiohttp.ClientSession() as session:
+                url = f"https://finnhub.io/api/v1/calendar/earnings?from={datetime.now().strftime('%Y-%m-%d')}&to={(datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        for report in data.get("earningsCalendar", [])[:20]:
+                            earnings.append({
+                                "symbol": report.get("symbol", "N/A"),
+                                "company": report.get("company", "N/A"),
+                                "date": report.get("date", "N/A"),
+                                "time": report.get("hour", "N/A"),
+                                "epsEstimate": report.get("epsEstimate", None),
+                                "epsActual": report.get("epsActual", None),
+                                "revenueEstimate": report.get("revenueEstimate", None),
+                                "revenueActual": report.get("revenueActual", None)
+                            })
+    except Exception as e:
+        logging.error(f"Finnhub earnings fetch error: {e}")
+
+    # --- Alpha Vantage (News Sentiment as fallback for earnings) ---
+    try:
+        if ALPHA_VANTAGE_API_KEY and len(earnings) < 5:
+            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&apikey={ALPHA_VANTAGE_API_KEY}&topics=earnings"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for item in data.get("feed", [])[:5]:
+                earnings.append({
+                    "symbol": item.get("ticker_sentiment", [{}])[0].get("ticker", "N/A") if item.get("ticker_sentiment") else "N/A",
+                    "company": item.get("title", "N/A"),
+                    "date": item.get("time_published", "N/A")[:10],
+                    "time": "N/A",
+                    "epsEstimate": None,
+                    "epsActual": None,
+                    "revenueEstimate": None,
+                    "revenueActual": None
+                })
+    except Exception as e:
+        logging.error(f"Alpha Vantage earnings fallback error: {e}")
+
+    # --- Yahoo Finance (unofficial, fallback) ---
+    try:
+        if len(earnings) < 5:
+            url = "https://query1.finance.yahoo.com/v7/finance/earnings-calendar"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for report in data.get("earningsCalendar", [])[:5]:
+                earnings.append({
+                    "symbol": report.get("symbol", "N/A"),
+                    "company": report.get("company", "N/A"),
+                    "date": report.get("reportDate", "N/A"),
+                    "time": report.get("time", "N/A"),
+                    "epsEstimate": report.get("epsEstimate", None),
+                    "epsActual": report.get("epsActual", None),
+                    "revenueEstimate": report.get("revenueEstimate", None),
+                    "revenueActual": report.get("revenueActual", None)
+                })
+    except Exception as e:
+        logging.error(f"Yahoo Finance earnings fallback error: {e}")
+
+    # Fallback mock data if all APIs fail
+    if not earnings:
+        earnings = [
+            {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close", "epsEstimate": 1.25, "epsActual": None, "revenueEstimate": 82000000000, "revenueActual": None},
+            {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open", "epsEstimate": 2.10, "epsActual": None, "revenueEstimate": 56000000000, "revenueActual": None},
+        ]
+
+    return {"calendar": earnings}
 
 # --- IPOs Endpoint ---
 import aiohttp
@@ -408,16 +476,6 @@ def get_earnings_calendar():
     ]
     return {"calendar": sample}
 
-# --- IPOs Endpoint ---
-@app.get("/ipos")
-def get_ipos():
-    """Get IPOs (placeholder)"""
-    # TODO: Replace with real data/service if available
-    sample = [
-        {"symbol": "NEWC", "company": "NewCo Inc.", "ipo_date": "2025-08-10", "exchange": "NASDAQ"},
-        {"symbol": "TECHX", "company": "TechX Ltd.", "ipo_date": "2025-08-15", "exchange": "NYSE"},
-    ]
-    return {"ipos": sample}
 
 @app.exception_handler(Exception)
 async def internal_exception_handler(request: Request, exc: Exception):

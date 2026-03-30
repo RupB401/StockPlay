@@ -322,6 +322,73 @@ function StockDetail() {
     return `${(marketCap / 1000).toFixed(2)} Billion`;
   };
 
+  const parsePriceNumber = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value === "string") {
+      const parsed = parseFloat(value.replace(/[$,]/g, "").trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const getChartPriceMetrics = (dataPoints) => {
+    if (!Array.isArray(dataPoints) || dataPoints.length === 0) return null;
+
+    const getPointPrice = (point) => {
+      const candidates = [point?.close, point?.price, point?.open];
+      for (const value of candidates) {
+        const parsed = parsePriceNumber(value);
+        if (parsed !== null && parsed > 0) return parsed;
+      }
+      return null;
+    };
+
+    const latestPrice = getPointPrice(dataPoints[dataPoints.length - 1]);
+    if (latestPrice === null) return null;
+
+    const previousPrice =
+      dataPoints.length > 1 ? getPointPrice(dataPoints[dataPoints.length - 2]) : null;
+
+    if (previousPrice === null || previousPrice <= 0) {
+      return {
+        latest: latestPrice,
+        change: null,
+        percent: null,
+        isNegative: false,
+      };
+    }
+
+    const change = latestPrice - previousPrice;
+    const percent = (change / previousPrice) * 100;
+
+    return {
+      latest: latestPrice,
+      change,
+      percent,
+      isNegative: change < 0,
+    };
+  };
+
+  const chartPriceMetrics = getChartPriceMetrics(historicalData?.data);
+  const apiPrice = parsePriceNumber(stockData?.price);
+  const displayPriceValue =
+    chartPriceMetrics?.latest ?? (apiPrice !== null && apiPrice > 0 ? apiPrice : null);
+  const displayPrice =
+    displayPriceValue !== null ? `$${displayPriceValue.toFixed(2)}` : stockData?.price || "$0.00";
+  const displayChange =
+    chartPriceMetrics?.change !== null && chartPriceMetrics?.change !== undefined
+      ? `${chartPriceMetrics.change >= 0 ? "+" : ""}${chartPriceMetrics.change.toFixed(2)}`
+      : stockData?.change || "0.00";
+  const displayPercent =
+    chartPriceMetrics?.percent !== null && chartPriceMetrics?.percent !== undefined
+      ? `${chartPriceMetrics.percent >= 0 ? "+" : ""}${chartPriceMetrics.percent.toFixed(2)}%`
+      : stockData?.percent || "0.00%";
+  const displayIsNegative =
+    chartPriceMetrics?.change !== null && chartPriceMetrics?.change !== undefined
+      ? chartPriceMetrics.isNegative
+      : Boolean(stockData?.isNegative);
+
   if (loading) {
     return (
       <div
@@ -514,15 +581,15 @@ function StockDetail() {
                   isDark ? "text-white" : "text-gray-900"
                 }`}
               >
-                {stockData.price}
+                {displayPrice}
               </div>
               <div
                 className={`flex items-center justify-end gap-1 text-lg font-medium ${
-                  stockData.isNegative ? "text-red-500" : "text-green-500"
+                  displayIsNegative ? "text-red-500" : "text-green-500"
                 }`}
               >
-                {stockData.isNegative ? <FiTrendingDown /> : <FiTrendingUp />}
-                {stockData.change} ({stockData.percent})
+                {displayIsNegative ? <FiTrendingDown /> : <FiTrendingUp />}
+                {displayChange} ({displayPercent})
               </div>
             </div>
           </div>

@@ -168,6 +168,14 @@ class TradingDatabase:
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
+                
+                CREATE OR REPLACE FUNCTION update_last_updated_column()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    NEW.last_updated = CURRENT_TIMESTAMP;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
             """)
             
             cursor.execute("""
@@ -181,7 +189,7 @@ class TradingDatabase:
                 DROP TRIGGER IF EXISTS update_stock_holdings_updated_at ON stock_holdings;
                 CREATE TRIGGER update_stock_holdings_updated_at
                     BEFORE UPDATE ON stock_holdings
-                    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+                    FOR EACH ROW EXECUTE FUNCTION update_last_updated_column();
             """)
             
             conn.commit()

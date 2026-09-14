@@ -9,7 +9,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 60000, // 60 second timeout for Render cold starts
 });
 
 // Request interceptor for logging
@@ -44,7 +44,7 @@ api.interceptors.response.use(
 // Health check function
 export const checkHealth = async () => {
   try {
-    const response = await api.get('/health');
+    const response = await api.get('/status');
     return { status: 'connected', data: response.data };
   } catch (error) {
     return { status: 'disconnected', error: error.message };

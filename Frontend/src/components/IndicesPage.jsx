@@ -8,7 +8,7 @@ import {
   FiBarChart,
   FiPlus,
 } from "react-icons/fi";
-import { addStockToDashboard } from "../services/stockApi";
+import { addStockToDashboard, getMarketIndices } from "../services/stockApi";
 import {
   LineChart,
   Line,
@@ -89,33 +89,21 @@ function IndicesPage() {
   const fetchIndicesData = async () => {
     try {
       setLoading(true);
-      // Skip the /indices endpoint and go directly to individual stock calls
-      await fetchIndicesDataFallback();
-    } catch (error) {
-      console.error("Error fetching indices:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const marketData = await getMarketIndices();
+      
+      const indicesData = marketData.map((data) => {
+        const mapping = indexMapping[data.symbol] || indexMapping["^GSPC"];
+        return {
+          ...mapping,
+          indexSymbol: data.symbol,
+          price: data.value,
+          change: data.change,
+          percent: data.percent,
+          isNegative: data.isNegative,
+          performance: generatePerformanceData(),
+        };
+      });
 
-  const fetchIndicesDataFallback = async () => {
-    try {
-      const promises = Object.entries(indexMapping).map(
-        async ([indexSymbol, mapping]) => {
-          const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/stock/detail/${mapping.symbol}`
-          );
-          const data = await response.json();
-          return {
-            ...data,
-            indexSymbol,
-            ...mapping,
-            performance: generatePerformanceData(),
-          };
-        }
-      );
-
-      const indicesData = await Promise.all(promises);
       setIndices(indicesData);
 
       // Check if there's a selected parameter in URL
@@ -136,7 +124,9 @@ function IndicesPage() {
         setSelectedIndex(spyIndex);
       }
     } catch (error) {
-      console.error("Error fetching indices fallback:", error);
+      console.error("Error fetching indices:", error);
+    } finally {
+      setLoading(false);
     }
   };
 

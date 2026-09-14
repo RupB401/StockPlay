@@ -978,7 +978,7 @@ def get_cached_or_fetch_logo(symbol):
 def read_root():
     return {"Hello": "World", "message": "Stock Market API is running!"}
 
-@app.get("/health")
+@app.get("/status")
 def health_check():
     """Health check endpoint for frontend connectivity testing"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}

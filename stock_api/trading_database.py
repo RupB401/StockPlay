@@ -51,12 +51,21 @@ class TradingDatabase:
                     unrealized_gain_loss DECIMAL(15, 2) DEFAULT 0.00,
                     unrealized_gain_loss_percent DECIMAL(8, 4) DEFAULT 0.00,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                     UNIQUE(user_id, symbol)
                 );
             """)
             
+            # Safeguard for legacy databases that might still have old triggers trying to update 'updated_at'
+            try:
+                cursor.execute("""
+                    ALTER TABLE stock_holdings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                """)
+            except Exception as e:
+                logging.warning(f"Could not alter stock_holdings to add updated_at: {e}")
+                
             # 3. Transaction History Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (

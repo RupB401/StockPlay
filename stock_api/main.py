@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import aiohttp
 import yfinance as yf
-from database import search_stocks_in_db, insert_stock_info, get_connection
+from database import search_stocks_in_db, insert_stock_info, get_connection, create_table
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -70,19 +70,42 @@ async def startup_event():
     """Initialize database tables on startup"""
     global growth_scheduler
     
-    AuthDatabase.create_auth_tables()
-    TradingDatabase.create_trading_tables()
-    StockInfoDatabase.create_stock_info_table()
+    # 1. Auth tables
+    try:
+        AuthDatabase.create_auth_tables()
+        logger.info("✅ Auth tables verified/created")
+    except Exception as e:
+        logger.error(f"Failed to create auth tables: {e}")
+        
+    # 2. Trading tables
+    try:
+        TradingDatabase.create_trading_tables()
+        logger.info("✅ Trading tables verified/created")
+    except Exception as e:
+        logger.error(f"Failed to create trading tables: {e}")
+        
+    # 3. Stock info table (stock_info_database)
+    try:
+        StockInfoDatabase.create_stock_info_table()
+        logger.info("✅ Stock info table (StockInfoDatabase) verified/created")
+    except Exception as e:
+        logger.error(f"Failed to create stock info table: {e}")
+
+    # 4. Main stock info table (database.py)
+    try:
+        create_table()
+    except Exception as e:
+        logger.error(f"Failed to create stock_info database table: {e}")
     
-    # Start automatic database growth scheduler
+    # 5. Database growth scheduler
     try:
         growth_scheduler = StockDatabaseGrowthScheduler()
         growth_scheduler.start_scheduler()
-        logger.info("✅ Database growth scheduler started - will automatically add more stocks over time")
+        logger.info("✅ Database growth scheduler started")
     except Exception as e:
         logger.error(f"Failed to start database growth scheduler: {e}")
     
-    # Create unknown searches table
+    # 6. Unknown searches table
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -98,19 +121,31 @@ async def startup_event():
         """)
         conn.commit()
         conn.close()
-        logging.info("✅ Unknown searches table created successfully")
+        logger.info("✅ Unknown searches table created successfully")
     except Exception as e:
-        logging.error(f"Failed to create unknown searches table: {e}")
+        logger.error(f"Failed to create unknown searches table: {e}")
     
-    StockUniverseDatabase.create_tables()
+    # 7. Stock universe SQLite database
+    try:
+        StockUniverseDatabase.initialize_database()
+        logger.info("✅ Stock universe database initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize stock universe database: {e}")
     
-    # Start the universe update scheduler
-    start_universe_scheduler()
+    # 8. Start schedulers
+    try:
+        start_universe_scheduler()
+        logger.info("✅ Universe scheduler started")
+    except Exception as e:
+        logger.error(f"Failed to start universe scheduler: {e}")
+        
+    try:
+        start_price_scheduler()
+        logger.info("✅ Price scheduler started")
+    except Exception as e:
+        logger.error(f"Failed to start price scheduler: {e}")
     
-    # Start the price update scheduler
-    start_price_scheduler()
-    
-    logging.info("✅ Application startup complete")
+    logger.info("✅ Application startup complete")
 
 # Helper functions for search functionality
 async def track_unknown_search(query: str, client_ip: str, user_id: int = None):

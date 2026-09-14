@@ -138,6 +138,11 @@ class StockUniverseDatabase:
             logger.info("Stock universe database initialized")
     
     @staticmethod
+    def create_tables():
+        """Alias for initialize_database to create required tables"""
+        return StockUniverseDatabase.initialize_database()
+
+    @staticmethod
     def add_or_update_stock(stock_data: Dict):
         """Add or update a stock with ACID compliance"""
         required_fields = ['symbol', 'current_price', 'volume']

@@ -39,5 +39,8 @@ schedule==1.2.0
 # Pydantic v1.10.13 is the latest compatible with FastAPI 0.104.1 and Python <=3.12
 pydantic==1.10.13
 
+# Data processing
+pandas
+
 # Email validation
 email-validator>=2.1.1

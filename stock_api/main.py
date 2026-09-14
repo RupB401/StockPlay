@@ -30,12 +30,13 @@ from universe_scheduler import start_universe_scheduler, stop_universe_scheduler
 from price_scheduler import start_price_scheduler, stop_price_scheduler
 
 # Load environment variables from credentials.env
-import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
 credentials_path = os.path.join(current_dir, "credentials.env")
 load_dotenv(credentials_path)
 
-logging.basicConfig(level=logging.INFO)
+# Get API keys from environment variables
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
 
 app = FastAPI(title="StockPlay API", description="Stock market data and authentication API")
 
@@ -101,6 +102,16 @@ async def startup_event():
     except Exception as e:
         logging.error(f"Failed to create unknown searches table: {e}")
     
+    StockUniverseDatabase.create_tables()
+    
+    # Start the universe update scheduler
+    start_universe_scheduler()
+    
+    # Start the price update scheduler
+    start_price_scheduler()
+    
+    logging.info("✅ Application startup complete")
+
 # Helper functions for search functionality
 async def track_unknown_search(query: str, client_ip: str, user_id: int = None):
     """Track searches that returned no results for future universe expansion"""
@@ -150,15 +161,6 @@ async def add_to_stock_universe(stock_result: dict):
             logging.info(f"Added {stock_result['symbol']} to stock universe")
     except Exception as e:
         logging.error(f"Failed to add {stock_result.get('symbol', 'unknown')} to universe: {e}")
-    StockUniverseDatabase.create_tables()
-    
-    # Start the universe update scheduler
-    start_universe_scheduler()
-    
-    # Start the price update scheduler
-    start_price_scheduler()
-    
-    logging.info("✅ Application startup complete")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -271,7 +273,6 @@ async def screen_stocks(filters: dict = Body(...)):
         }
 
 # --- Earnings Calendar Endpoint ---
-import aiohttp
 
 
 @app.get("/earnings/calendar")
@@ -366,7 +367,6 @@ async def get_earnings_calendar():
     return {"upcoming": upcoming, "recent": recent}
 
 # --- IPOs Endpoint ---
-import aiohttp
 
 @app.get("/ipos")
 async def get_ipos():
@@ -526,39 +526,6 @@ async def get_ipos():
         "recent_ipos": recent_ipos
     }
 
-# --- Screener Endpoints ---
-from fastapi import Body
-
-@app.get("/screener/sectors")
-def get_screener_sectors():
-    """Get list of available sectors for screener"""
-    try:
-        return {"sectors": ScreenerService.get_sectors()}
-    except Exception as e:
-        logger.error(f"Error fetching screener sectors: {e}")
-        return {"sectors": []}
-
-@app.post("/screener/screen")
-async def screen_stocks(filters: dict = Body(...)):
-    """Screen stocks based on filters"""
-    try:
-        results = await ScreenerService.screen_stocks(filters)
-        return {"results": results}
-    except Exception as e:
-        logger.error(f"Error screening stocks: {e}")
-        return {"results": [], "error": str(e)}
-
-# --- Earnings Calendar Endpoint ---
-@app.get("/earnings/calendar")
-def get_earnings_calendar():
-    """Get earnings calendar (placeholder)"""
-    # TODO: Replace with real data/service if available
-    sample = [
-        {"symbol": "AAPL", "company": "Apple Inc.", "date": "2025-08-01", "time": "After Market Close"},
-        {"symbol": "MSFT", "company": "Microsoft Corp.", "date": "2025-08-02", "time": "Before Market Open"},
-    ]
-    return {"calendar": sample}
-
 
 @app.exception_handler(Exception)
 async def internal_exception_handler(request: Request, exc: Exception):
@@ -567,10 +534,6 @@ async def internal_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"error": "Internal server error", "detail": str(exc)},
     )
-
-# Get API keys from environment variables
-ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
-FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
 
 # ETF name mapping for better display names
 ETF_NAMES = {

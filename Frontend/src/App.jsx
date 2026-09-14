@@ -173,14 +173,6 @@ function AppContent() {
               }
             />
             <Route
-              path="/stock-universe"
-              element={
-                <ProtectedRoute>
-                  <StockUniversePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/stock/:symbol"
               element={
                 <ProtectedRoute>

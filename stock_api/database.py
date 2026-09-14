@@ -3,12 +3,6 @@ import psycopg2.extras  # <-- Add this import
 import os
 import logging
 from dotenv import load_dotenv
-from pprint import pprint
-from datetime import datetime, timedelta
-import json
-
-# Load environment variables
-import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
 credentials_path = os.path.join(current_dir, "credentials.env")
 load_dotenv(dotenv_path=credentials_path)
@@ -140,34 +134,42 @@ def insert_stock_info(data):
                 company_name = alphavantage.get("Name")
                 logo = finnhub.get("logo")
 
-                # Extract relevant data for simplified schema
-                values = (symbol, price, market_cap, pe_ratio, pb_ratio, dividend_yield, sector, industry, company_name, logo)
+                # Extract relevant data for all schema columns
+                values = (
+                    symbol, price, currency, market_cap, pe_ratio, eps,
+                    pb_ratio, dividend_yield, industry_pe, book_value, roe,
+                    sector, industry, exchange, company_name, logo
+                )
 
-                logging.info(f"Inserting values: {values}")
+                logging.info(f"Inserting values for {symbol}")
 
                 cur.execute("""
                     INSERT INTO stock_info (
-                        symbol, current_price, market_cap, pe_ratio, 
-                        pb_ratio, dividend_yield, sector, industry, 
-                        company_name, logo_url
+                        symbol, price, currency, market_cap, pe_ratio, eps,
+                        pb_ratio, dividend_yield, industry_pe, book_value, roe,
+                        sector, industry, exchange, company_name, logo
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (symbol) 
                     DO UPDATE SET
-                        current_price = EXCLUDED.current_price,
+                        price = EXCLUDED.price,
+                        currency = EXCLUDED.currency,
                         market_cap = EXCLUDED.market_cap,
                         pe_ratio = EXCLUDED.pe_ratio,
+                        eps = EXCLUDED.eps,
                         pb_ratio = EXCLUDED.pb_ratio,
                         dividend_yield = EXCLUDED.dividend_yield,
+                        industry_pe = EXCLUDED.industry_pe,
+                        book_value = EXCLUDED.book_value,
+                        roe = EXCLUDED.roe,
                         sector = EXCLUDED.sector,
                         industry = EXCLUDED.industry,
+                        exchange = EXCLUDED.exchange,
                         company_name = EXCLUDED.company_name,
-                        logo_url = EXCLUDED.logo_url,
-                        last_updated = CURRENT_TIMESTAMP
-                """, (symbol, price, market_cap, pe_ratio, pb_ratio, dividend_yield, sector, industry, company_name, logo))
-
-                conn.commit()
+                        logo = EXCLUDED.logo,
+                        updated_at = CURRENT_TIMESTAMP
+                """, values)
 
                 conn.commit()
                 logging.info(f"✅ Successfully inserted/updated data for {symbol}")
